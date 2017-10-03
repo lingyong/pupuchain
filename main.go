@@ -1,7 +1,7 @@
 package main
 
 import (
-	"pupuchain/chain"
+	"github.com/lingyong/pupuchain/chain"
 )
 
 func main() {
