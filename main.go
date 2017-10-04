@@ -5,9 +5,6 @@ import (
 )
 
 func main() {
-	blockchain := chain.NewBlockchain()
-	defer blockchain.Db.Close()
-
-	cli := chain.CLI{blockchain}
+	cli := chain.CLI{}
 	cli.Run()
 }

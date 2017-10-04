@@ -8,9 +8,7 @@ import (
 	"strconv"
 )
 
-type CLI struct {
-	Bc *Blockchain
-}
+type CLI struct {}
 
 func (cli *CLI) printUsage() {
 	fmt.Println("Usage:")
@@ -34,16 +32,16 @@ func (cli *CLI) validateArgs() {
 func (cli *CLI) Run() {
 	cli.validateArgs()
 
-	addBlockCmd := flag.NewFlagSet("addblock", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
+	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 
-	addBlockData := addBlockCmd.String("data", "", "Block data")
+	createBlockchainAddress := createBlockchainCmd.String("address", "", "the address to send the genesis block to")
 
 	switch os.Args[1] {
-	case "addblock":
-		err := addBlockCmd.Parse(os.Args[2:])
+	case "createblockchain":
+		err := createBlockchainCmd.Parse(os.Args[2:])
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 	case "printchain":
 		err := printChainCmd.Parse(os.Args[2:])
@@ -55,27 +53,30 @@ func (cli *CLI) Run() {
 		os.Exit(1)
 	}
 
-	if addBlockCmd.Parsed() {
-		if *addBlockData == "" {
-			addBlockCmd.Usage()
-			os.Exit(1)
-		}
-		cli.addBlock(*addBlockData)
-	}
-
 	if printChainCmd.Parsed() {
 		cli.printChain()
+	}
+
+	if createBlockchainCmd.Parsed() {
+		if *createBlockchainAddress == "" {
+			createBlockchainCmd.Usage()
+			os.Exit(1)
+		}
+
+		cli.createBlockchain(*createBlockchainAddress)
 	}
 }
 
 func (cli *CLI) printChain() {
-	bci := cli.Bc.Iterator()
+	bc := NewBlockchain()
+	defer bc.Db.Close()
+
+	bci := bc.Iterator()
 
 	for {
 		block := bci.Next()
 
 		log.Printf("Prev Hash: %x\n", block.PrevBlockHash)
-		log.Printf("Data: %s\n", block.Data)
 		log.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
 		log.Printf("POW: %s \n", strconv.FormatBool(pow.Validate()))
@@ -86,7 +87,8 @@ func (cli *CLI) printChain() {
 	}
 }
 
-func (cli *CLI) addBlock(data string) {
-	cli.Bc.AddBlock(data)
-	log.Println("Add block worked!")
+func (cli *CLI) createBlockchain(address string) {
+	bc := CreateBlockchain(address)
+	bc.Db.Close()
+	fmt.Println("Done!")
 }
