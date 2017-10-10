@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"fmt"
+	"encoding/hex"
 )
 
 const dbFile = "blockchain.Db"
@@ -99,4 +100,55 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 	bci := &BlockchainIterator{bc.tip, bc.Db}
 
 	return bci
+}
+
+// returns all the transactions that have unspent outputs belong to the address
+func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
+	var unspentTXs []Transaction
+	// key is the transaction id, value is the index of the output of the transactions that already spent by the address
+	spentTXOs := make(map[string][]int)
+	bci := bc.Iterator()
+
+	for {
+		block := bci.Next()
+
+		for _, tx := range block.Transactions {
+			txId := hex.EncodeToString(tx.ID)
+
+			Outputs:
+				for outIndex, out := range tx.Vout {
+					// one of the outputs of the transaction is already spent
+					if spentTXOs[txId] != nil {
+						for _, spentOutputIndex := range spentTXOs[txId] {
+							// this means this output in this transaction is already spent
+							if spentOutputIndex == outIndex {
+								// if the output is already spent, we skip the adding part
+								continue Outputs
+							}
+						}
+					}
+
+					// the output is not spent yet and it is belong to the user
+					if out.CanUnlockWith(address) {
+						unspentTXs = append(unspentTXs, *tx)
+					}
+				}
+
+				// go over all the transactions' inputs
+				if tx.IsCoinbase() == false {
+					for _, in := range tx.Vin {
+						if in.CanUnlockOutputWith(address) {
+							inTxId := hex.EncodeToString(in.Txid)
+							spentTXOs[inTxId] = append(spentTXOs[inTxId], in.Vout)
+						}
+					}
+				}
+
+				if len(block.PrevBlockHash) == 0 {
+					break
+				}
+		}
+
+		return unspentTXs
+	}
 }

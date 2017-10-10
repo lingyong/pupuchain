@@ -9,12 +9,23 @@ import (
 )
 
 type Transaction struct {
-	ID []byte // id is the hash of the transaction
-	Vin []TXInput
+	ID   []byte // id is the hash of the transaction
+	Vin  []TXInput
 	Vout []TXOutput
 }
 
 const subsidy = 10
+
+type TXInput struct {
+	Txid      []byte // transaction id of the previous output
+	Vout      int // index of the output of the previous transaction
+	ScriptSig string
+}
+
+type TXOutput struct {
+	Value        int
+	ScriptPubKey string
+}
 
 func NewCoinbaseTx(to, data string) *Transaction {
 	if data == "" {
@@ -28,7 +39,7 @@ func NewCoinbaseTx(to, data string) *Transaction {
 	}
 
 	txout := TXOutput{
-		Value: subsidy, // amount of reward
+		Value:        subsidy, // amount of reward
 		ScriptPubKey: to,
 	}
 
@@ -64,4 +75,20 @@ func (tx *Transaction) Hash() []byte {
 	hash = sha256.Sum256(txCopy.Serialize())
 
 	return hash[:]
+}
+
+// output here means the output of the previous transaction
+// this means the address already spent the previous output on this input
+func (in *TXInput) CanUnlockOutputWith(unlockingData string) bool {
+	return in.ScriptSig == unlockingData
+}
+
+// whether the money store in the output belongs to the user or not
+func (out *TXOutput) CanUnlockWith(unlockingData string) bool {
+	return out.ScriptPubKey == unlockingData
+}
+
+// IsCoinbase checks whether the transaction is coinbase
+func (tx Transaction) IsCoinbase() bool {
+	return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
 }
