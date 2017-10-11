@@ -1,4 +1,4 @@
-package chain
+package main
 
 import (
 	"fmt"
@@ -34,10 +34,18 @@ func (cli *CLI) Run() {
 
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
-
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "the address to send the genesis block to")
 
+	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
+	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
+
+
 	switch os.Args[1] {
+	case "getbalance":
+		err := getBalanceCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
 	case "createblockchain":
 		err := createBlockchainCmd.Parse(os.Args[2:])
 		if err != nil {
@@ -65,6 +73,14 @@ func (cli *CLI) Run() {
 
 		cli.createBlockchain(*createBlockchainAddress)
 	}
+
+	if getBalanceCmd.Parsed() {
+		if *getBalanceAddress == "" {
+			getBalanceCmd.Usage()
+			os.Exit(1)
+		}
+		cli.getBalance(*getBalanceAddress)
+	}
 }
 
 func (cli *CLI) printChain() {
@@ -76,10 +92,10 @@ func (cli *CLI) printChain() {
 	for {
 		block := bci.Next()
 
-		log.Printf("Prev Hash: %x\n", block.PrevBlockHash)
-		log.Printf("Hash: %x\n", block.Hash)
+		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
+		fmt.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
-		log.Printf("POW: %s \n", strconv.FormatBool(pow.Validate()))
+		fmt.Printf("POW: %s \n", strconv.FormatBool(pow.Validate()))
 
 		if len(block.PrevBlockHash) == 0 {
 			break
@@ -91,4 +107,18 @@ func (cli *CLI) createBlockchain(address string) {
 	bc := CreateBlockchain(address)
 	bc.Db.Close()
 	fmt.Println("Done!")
+}
+
+func (cli *CLI) getBalance(address string) {
+	bc := NewBlockchain()
+	defer bc.Db.Close()
+
+	balance := 0
+	UTXOs := bc.FindUTXO(address)
+
+	for _, out := range UTXOs {
+		balance += out.Value
+	}
+
+	fmt.Printf("balance of %s : %d\n", address, balance)
 }

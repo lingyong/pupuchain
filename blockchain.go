@@ -1,4 +1,4 @@
-package chain
+package main
 
 import (
 	"github.com/boltdb/bolt"
@@ -110,6 +110,7 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 	bci := bc.Iterator()
 
 	for {
+		//  the iterator is going from the most recent block to the genesis block
 		block := bci.Next()
 
 		for _, tx := range block.Transactions {
@@ -151,4 +152,20 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 
 		return unspentTXs
 	}
+
+}
+
+func (bc *Blockchain) FindUTXO(address string) []TXOutput {
+	var UTXOs []TXOutput
+	unspentTransactions := bc.FindUnspentTransactions(address)
+
+	for _, tx := range unspentTransactions {
+		for _, out := range tx.Vout {
+			if out.CanUnlockWith(address) {
+				UTXOs = append(UTXOs, out)
+			}
+		}
+	}
+
+	return UTXOs
 }
