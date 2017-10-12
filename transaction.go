@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"log"
+	"encoding/hex"
 )
 
 type Transaction struct {
@@ -49,7 +50,7 @@ func NewCoinbaseTx(to, data string) *Transaction {
 		Vout: []TXOutput{txout},
 	}
 
-	tx.ID = tx.Hash()
+	tx.SetID()
 
 	return &tx
 }
@@ -66,7 +67,7 @@ func (tx Transaction) Serialize() []byte {
 	return encoded.Bytes()
 }
 
-func (tx *Transaction) Hash() []byte {
+func (tx *Transaction) SetID() {
 	var hash [32]byte
 
 	txCopy := *tx
@@ -74,7 +75,7 @@ func (tx *Transaction) Hash() []byte {
 
 	hash = sha256.Sum256(txCopy.Serialize())
 
-	return hash[:]
+	tx.ID = hash[:]
 }
 
 // output here means the output of the previous transaction
@@ -91,4 +92,40 @@ func (out *TXOutput) CanUnlockWith(unlockingData string) bool {
 // IsCoinbase checks whether the transaction is coinbase
 func (tx Transaction) IsCoinbase() bool {
 	return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
+}
+
+func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transaction {
+	var inputs []TXInput
+	var outputs []TXOutput
+
+	acc, validOutputs := bc.FindSpendableOutputs(from, amount)
+
+	if acc < amount {
+		log.Panic("Error: not enough funds")
+	}
+
+	// for each of the output, build a input for it
+	for txid, outs := range validOutputs {
+		txId, err := hex.DecodeString(txid)
+
+		if err != nil {
+			log.Panic(err)
+		}
+		for _, out := range outs {
+			input := TXInput{txId, out, from}
+			inputs = append(inputs, input)
+		}
+	}
+
+	// build potential two outputs, one will be locked with receiver address, one will be locked with
+	// sender address, this is the change.
+	outputs = append(outputs, TXOutput{amount, to})
+	if acc > amount {
+		outputs = append(outputs, TXOutput{acc - amount, from})
+	}
+
+	tx := Transaction{nil, inputs, outputs}
+	tx.SetID()
+
+	return &tx
 }
