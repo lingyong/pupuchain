@@ -6,7 +6,6 @@ import (
 	"os"
 	"fmt"
 	"encoding/hex"
-	"encoding/asn1"
 )
 
 const dbFile = "blockchain.Db"
@@ -117,38 +116,38 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 		for _, tx := range block.Transactions {
 			txId := hex.EncodeToString(tx.ID)
 
-			Outputs:
-				for outIndex, out := range tx.Vout {
-					// one of the outputs of the transaction is already spent
-					if spentTXOs[txId] != nil {
-						for _, spentOutputIndex := range spentTXOs[txId] {
-							// this means this output in this transaction is already spent
-							if spentOutputIndex == outIndex {
-								// if the output is already spent, we skip the adding part
-								continue Outputs
-							}
-						}
-					}
-
-					// the output is not spent yet and it is belong to the user
-					if out.CanUnlockWith(address) {
-						unspentTXs = append(unspentTXs, *tx)
-					}
-				}
-
-				// go over all the transactions' inputs
-				if tx.IsCoinbase() == false {
-					for _, in := range tx.Vin {
-						if in.CanUnlockOutputWith(address) {
-							inTxId := hex.EncodeToString(in.Txid)
-							spentTXOs[inTxId] = append(spentTXOs[inTxId], in.Vout)
+		Outputs:
+			for outIndex, out := range tx.Vout {
+				// one of the outputs of the transaction is already spent
+				if spentTXOs[txId] != nil {
+					for _, spentOutputIndex := range spentTXOs[txId] {
+						// this means this output in this transaction is already spent
+						if spentOutputIndex == outIndex {
+							// if the output is already spent, we skip the adding part
+							continue Outputs
 						}
 					}
 				}
 
-				if len(block.PrevBlockHash) == 0 {
-					break
+				// the output is not spent yet and it is belong to the user
+				if out.CanUnlockWith(address) {
+					unspentTXs = append(unspentTXs, *tx)
 				}
+			}
+
+			// go over all the transactions' inputs
+			if tx.IsCoinbase() == false {
+				for _, in := range tx.Vin {
+					if in.CanUnlockOutputWith(address) {
+						inTxId := hex.EncodeToString(in.Txid)
+						spentTXOs[inTxId] = append(spentTXOs[inTxId], in.Vout)
+					}
+				}
+			}
+
+			if len(block.PrevBlockHash) == 0 {
+				break
+			}
 		}
 
 		return unspentTXs
@@ -176,21 +175,51 @@ func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map
 	unspentTXs := bc.FindUnspentTransactions(address)
 	accumulated := 0
 
-	Work:
-		for _, tx := range unspentTXs {
-			txId := hex.EncodeToString(tx.ID)
+Work:
+	for _, tx := range unspentTXs {
+		txId := hex.EncodeToString(tx.ID)
 
-			for outIdx, out := range tx.Vout {
-				if out.CanUnlockWith(address) && accumulated < amount {
-					accumulated += out.Value
-					unspentOutputs[txId] = append(unspentOutputs[txId], outIdx)
+		for outIdx, out := range tx.Vout {
+			if out.CanUnlockWith(address) && accumulated < amount {
+				accumulated += out.Value
+				unspentOutputs[txId] = append(unspentOutputs[txId], outIdx)
 
-					if accumulated >= amount {
-						break Work
-					}
+				if accumulated >= amount {
+					break Work
 				}
 			}
 		}
+	}
 
 	return accumulated, unspentOutputs
+}
+
+// mine new block with provided transactions
+func (bc *Blockchain) MineBlock(transactions []*Transaction) {
+	var lastHash []byte
+
+	err := bc.Db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		lastHash = b.Get([]byte("l"))
+
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	newBlock := NewBlock(transactions, lastHash)
+
+	err = bc.Db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		err := b.Put(newBlock.Hash, newBlock.Serialize())
+		if err != nil {
+			log.Panic(err)
+		}
+
+		bc.tip = newBlock.Hash
+
+		return nil
+	})
 }
