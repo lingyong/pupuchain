@@ -9,7 +9,7 @@ import (
 	"crypto/sha256"
 )
 
-const targetBits int64 = 24
+const targetBits int64 = 4
 
 type ProofOfWork struct {
 	block  *Block

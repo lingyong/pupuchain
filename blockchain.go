@@ -27,7 +27,7 @@ func dbExists() bool {
 // NewBlockchain creates a new Blockchain with genesis Block
 func NewBlockchain() *Blockchain {
 	if dbExists() == false {
-		fmt.Println("No existing blockchian found. Create one first")
+		fmt.Println("No existing blockchian found. Create one first, exiting now.")
 		os.Exit(1)
 	}
 
@@ -144,15 +144,13 @@ func (bc *Blockchain) FindUnspentTransactions(address string) []Transaction {
 					}
 				}
 			}
-
-			if len(block.PrevBlockHash) == 0 {
-				break
-			}
 		}
 
-		return unspentTXs
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
 	}
-
+	return unspentTXs
 }
 
 func (bc *Blockchain) FindUTXO(address string) []TXOutput {
@@ -204,7 +202,6 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 
 		return nil
 	})
-
 	if err != nil {
 		log.Panic(err)
 	}
@@ -218,8 +215,17 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 			log.Panic(err)
 		}
 
+		err = b.Put([]byte("l"), newBlock.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+
 		bc.tip = newBlock.Hash
 
 		return nil
 	})
+
+	if err != nil {
+		log.Panic(err)
+	}
 }

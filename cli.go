@@ -149,5 +149,5 @@ func (cli *CLI) send(from, to string, amount int) {
 	tx := NewUTXOTransaction(from, to, amount, bc)
 	bc.MineBlock([]*Transaction{tx})
 
-	fmt.Println("Success!")
+	log.Println("Send money success!")
 }

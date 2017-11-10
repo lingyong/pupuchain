@@ -85,6 +85,7 @@ func (in *TXInput) CanUnlockOutputWith(unlockingData string) bool {
 }
 
 // whether the money store in the output belongs to the user or not
+// so far, you can unlock the output if your address is the same as the scriptpubkey
 func (out *TXOutput) CanUnlockWith(unlockingData string) bool {
 	return out.ScriptPubKey == unlockingData
 }
@@ -108,10 +109,10 @@ func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transactio
 	// for each of the output, build a input for it
 	for txid, outs := range validOutputs {
 		txId, err := hex.DecodeString(txid)
-
 		if err != nil {
 			log.Panic(err)
 		}
+
 		for _, out := range outs {
 			input := TXInput{txId, out, from}
 			inputs = append(inputs, input)
